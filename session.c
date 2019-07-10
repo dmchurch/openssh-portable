@@ -1185,6 +1185,21 @@ do_setup_env(struct ssh *ssh, Session *s, const char *shell)
 		child_set_env(&env, &envsize, "SSH_ORIGINAL_COMMAND",
 		    original_command);
 
+#ifdef __APPLE_TMPDIR__
+	char tmpdir[MAXPATHLEN] = {0};
+	size_t len = 0;
+
+	len = confstr(_CS_DARWIN_USER_TEMP_DIR, tmpdir, sizeof(tmpdir));
+	if (len > 0) {
+		child_set_env(&env, &envsize, "TMPDIR", tmpdir);
+		debug2("%s: set TMPDIR", __func__);
+	} else {
+		// errno is set by confstr
+		errno = 0;
+		debug2("%s: unable to set TMPDIR", __func__);
+	}
+#endif /* __APPLE_TMPDIR__ */
+
 	if (debug_flag) {
 		/* dump the environment */
 		fprintf(stderr, "Environment:\n");

@@ -730,6 +730,14 @@ main() { if (NSVersionOfRunTimeLibrary("System") >= (60 << 16))
 			])
 		AC_LANG_POP([Objective C])
 	fi
+	AC_CHECK_FUNC([getgrouplist_2], [
+		AC_DEFINE([__APPLE_MEMBERSHIP__], [1],
+			[Use getgrouplist_2 for group access])
+	])
+	AC_CHECK_FUNC([confstr], [
+		AC_DEFINE([__APPLE_TMPDIR__], [1],
+			[Get user tmpdir using confstr])
+	])
 	;;
 *-*-dragonfly*)
 	SSHDLIBS="$SSHDLIBS -lcrypt"

@@ -39,6 +39,10 @@
 #include "match.h"
 #include "log.h"
 
+#ifdef __APPLE_MEMBERSHIP__
+int32_t getgrouplist_2(const char *, gid_t, gid_t **);
+#endif
+
 static int ngroups;
 static char **groups_byname;
 
@@ -56,6 +60,17 @@ ga_init(const char *user, gid_t base)
 	if (ngroups > 0)
 		ga_free();
 
+#ifdef __APPLE_MEMBERSHIP__
+	if ((ngroups = getgrouplist_2(user, base, &groups_bygid)) == -1) {
+		logit("getgrouplist_2 failed");
+		/*
+		 * getgrouplist_2 only fails on memory error; in which case
+		 * groups_bygid will be left NULL so no need to free.
+		 */
+		return 0;
+	}
+	groups_byname = xcalloc(ngroups, sizeof(*groups_byname));
+#else
 	ngroups = NGROUPS_MAX;
 #if defined(HAVE_SYSCONF) && defined(_SC_NGROUPS_MAX)
 	ngroups = MAX(NGROUPS_MAX, sysconf(_SC_NGROUPS_MAX));
@@ -70,6 +85,7 @@ ga_init(const char *user, gid_t base)
 	}
 	groups_byname = xcalloc(ngroups, sizeof(*groups_byname));
 
+#endif /* __APPLE_MEMBERSHIP__ */
 	for (i = 0, j = 0; i < ngroups; i++)
 		if ((gr = getgrgid(groups_bygid[i])) != NULL)
 			groups_byname[j++] = xstrdup(gr->gr_name);
