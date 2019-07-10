@@ -70,6 +70,9 @@
 #include <time.h>
 #include <string.h>
 #include <unistd.h>
+#ifdef __APPLE_LAUNCHD__
+#include <launch.h>
+#endif
 #ifdef HAVE_UTIL_H
 # include <util.h>
 #endif
@@ -1085,6 +1088,9 @@ int
 main(int ac, char **av)
 {
 	int c_flag = 0, d_flag = 0, D_flag = 0, k_flag = 0, s_flag = 0;
+	#ifdef __APPLE_LAUNCHD__
+	int l_flag = 0;
+	#endif
 	int sock, fd, ch, result, saved_errno;
 	char *shell, *format, *pidstr, *agentsocket = NULL;
 #ifdef HAVE_SETRLIMIT
@@ -1117,7 +1123,11 @@ main(int ac, char **av)
 	__progname = ssh_get_progname(av[0]);
 	seed_rng();
 
+#ifdef __APPLE_LAUNCHD__
+	while ((ch = getopt(ac, av, "cDdklsE:a:P:t:")) != -1) {
+#else
 	while ((ch = getopt(ac, av, "cDdksE:a:P:t:")) != -1) {
+#endif
 		switch (ch) {
 		case 'E':
 			fingerprint_hash = ssh_digest_alg_by_name(optarg);
@@ -1137,6 +1147,11 @@ main(int ac, char **av)
 				fatal("-P option already specified");
 			pkcs11_whitelist = xstrdup(optarg);
 			break;
+#ifdef __APPLE_LAUNCHD__
+		case 'l':
+			l_flag++;
+			break;
+#endif
 		case 's':
 			if (c_flag)
 				usage();
@@ -1239,6 +1254,29 @@ main(int ac, char **av)
 	 * Create socket early so it will exist before command gets run from
 	 * the parent.
 	 */
+ #ifdef __APPLE_LAUNCHD__
+ 	if (l_flag) {
+ 		int *fds = NULL;
+ 		size_t count = 0;
+ 		result = launch_activate_socket("Listeners", &fds, &count);
+
+ 		if (result != 0 || fds == NULL || count < 1) {
+ 			errno = result;
+ 			perror("launch_activate_socket()");
+ 			exit(1);
+ 		}
+
+ 		size_t i;
+ 		for (i = 0; i < count; i++) {
+ 			new_socket(AUTH_SOCKET, fds[i]);
+ 		}
+
+ 		if (fds)
+ 			free(fds);
+
+ 		goto skip2;
+ 	} else {
+ #endif
 	prev_mask = umask(0177);
 	sock = unix_listener(socket_name, SSH_LISTEN_BACKLOG, 0);
 	if (sock < 0) {
@@ -1246,6 +1284,9 @@ main(int ac, char **av)
 		*socket_name = '\0'; /* Don't unlink any existing file */
 		cleanup_exit(1);
 	}
+#ifdef __APPLE_LAUNCHD__
+	}
+#endif
 	umask(prev_mask);
 
 	/*
@@ -1324,6 +1365,9 @@ skip:
 	pkcs11_init(0);
 #endif
 	new_socket(AUTH_SOCKET, sock);
+#ifdef __APPLE_LAUNCHD__
+skip2:
+#endif
 	if (ac > 0)
 		parent_alive_interval = 10;
 	idtab_init();

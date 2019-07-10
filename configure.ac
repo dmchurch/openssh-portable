@@ -680,6 +680,24 @@ main() { if (NSVersionOfRunTimeLibrary("System") >= (60 << 16))
 	AC_CHECK_LIB([sandbox], [sandbox_apply], [
 	    SSHDLIBS="$SSHDLIBS -lsandbox"
 	])
+	no_launchd=""
+	AC_ARG_WITH([apple-launchd],
+		[  --without-apple-launchd Disable support for launchd],
+		[
+			if test "x$withval" = "xno" ; then
+				no_launchd=1
+			fi
+		],
+	)
+	if test -z "$no_launchd"; then
+		AC_CHECK_HEADERS([launch.h],
+			[
+				AC_DEFINE([__APPLE_LAUNCHD__], [1],
+					[Include support for launchd on Darwin])
+				AC_DEFINE([__APPLE_DISPLAY_VAR__], [1],
+					[Handle \$DISPLAY specially when using launchd])
+			])
+	fi
 	;;
 *-*-dragonfly*)
 	SSHDLIBS="$SSHDLIBS -lcrypt"
