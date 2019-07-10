@@ -139,6 +139,10 @@ typedef struct {
 	char	*remote_command;
 	int	visual_host_key;
 
+#ifdef __APPLE_KEYCHAIN__
+	int	use_keychain;
+#endif
+
 	int	request_tty;
 
 	int	proxy_use_fdpass;

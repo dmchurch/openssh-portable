@@ -73,6 +73,11 @@
 #include "ssherr.h"
 #include "utf8.h"
 
+#ifdef __APPLE_KEYCHAIN__
+#include "keychain.h"
+int found_in_keychain = 0;
+#endif
+
 #ifdef GSSAPI
 #include "ssh-gss.h"
 #endif
@@ -1416,6 +1421,12 @@ load_identity_file(Identity *id)
 	snprintf(prompt, sizeof prompt,
 	    "Enter passphrase for key '%.100s': ", id->filename);
 	for (i = 0; i <= options.number_of_password_prompts; i++) {
+#ifdef __APPLE_KEYCHAIN__
+		if (i == 0 && options.use_keychain && (passphrase = keychain_read_passphrase(id->filename)) != NULL) {
+			found_in_keychain = 1;
+			debug2("using passphrase from keychain");
+		} else
+#endif
 		if (i == 0)
 			passphrase = "";
 		else {
@@ -1451,6 +1462,14 @@ load_identity_file(Identity *id)
 			quit = 1;
 			break;
 		}
+
+#ifdef __APPLE_KEYCHAIN__
+		if (!quit && private != NULL && !(id->key && id->isprivate) && options.use_keychain && !found_in_keychain) {
+			debug2("storing passphrase in keychain");
+			store_in_keychain(id->filename, passphrase);
+		}
+#endif
+
 		if (!quit && private != NULL && id->agent_fd == -1 &&
 		    !(id->key && id->isprivate))
 			maybe_add_key_to_agent(id->filename, private, comment,

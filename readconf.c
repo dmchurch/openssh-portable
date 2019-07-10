@@ -167,6 +167,9 @@ typedef enum {
 	oHashKnownHosts,
 	oTunnel, oTunnelDevice,
 	oLocalCommand, oPermitLocalCommand, oRemoteCommand,
+#ifdef __APPLE_KEYCHAIN__
+	oUseKeychain,
+#endif
 	oVisualHostKey,
 	oKexAlgorithms, oIPQoS, oRequestTTY, oIgnoreUnknown, oProxyUseFdpass,
 	oCanonicalDomains, oCanonicalizeHostname, oCanonicalizeMaxDots,
@@ -292,6 +295,9 @@ static struct {
 	{ "permitlocalcommand", oPermitLocalCommand },
 	{ "remotecommand", oRemoteCommand },
 	{ "visualhostkey", oVisualHostKey },
+#ifdef __APPLE_KEYCHAIN__
+	{ "usekeychain", oUseKeychain},
+#endif
 	{ "kexalgorithms", oKexAlgorithms },
 	{ "ipqos", oIPQoS },
 	{ "requesttty", oRequestTTY },
@@ -1515,6 +1521,12 @@ parse_keytypes:
 		intptr = &options->visual_host_key;
 		goto parse_flag;
 
+#ifdef __APPLE_KEYCHAIN__
+	case oUseKeychain:
+		intptr = &options->use_keychain;
+		goto parse_flag;
+#endif
+
 	case oInclude:
 		if (cmdline)
 			fatal("Include directive not supported as a "
@@ -1923,6 +1935,9 @@ initialize_options(Options * options)
 	options->add_keys_to_agent = -1;
 	options->identity_agent = NULL;
 	options->visual_host_key = -1;
+#ifdef __APPLE_KEYCHAIN__
+	options->use_keychain = -1;
+#endif
 	options->ip_qos_interactive = -1;
 	options->ip_qos_bulk = -1;
 	options->request_tty = -1;
@@ -2159,6 +2174,11 @@ fill_default_options(Options * options)
 	/* options->hostname will be set in the main program if appropriate */
 	/* options->host_key_alias should not be set by default */
 	/* options->preferred_authentications will be set in ssh */
+
+#ifdef __APPLE_KEYCHAIN__
+	if (options->use_keychain == -1)
+		options->use_keychain = 0;
+#endif
 }
 
 struct fwdarg {

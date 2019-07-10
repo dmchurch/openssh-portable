@@ -1641,6 +1641,18 @@ Presently, only
 from OpenSSH 6.8 and greater support the
 .Qq hostkeys@openssh.com
 protocol extension used to inform the client of all the server's hostkeys.
+.\" #ifdef __APPLE_KEYCHAIN__
+.It Cm UseKeychain
+On macOS, specifies whether the system should search for passphrases in the user's keychain when attempting to use
+a particular key. When the passphrase is provided by the user, this option also specifies whether the passphrase
+should be stored into the keychain once it has been verified to be correct.
+The argument must be
+.Dq yes
+or
+.Dq no .
+The default is
+.Dq no .
+.\" #endif
 .It Cm User
 Specifies the user to log in as.
 This can be useful when a different user name is used on different machines.

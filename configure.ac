@@ -698,6 +698,38 @@ main() { if (NSVersionOfRunTimeLibrary("System") >= (60 << 16))
 					[Handle \$DISPLAY specially when using launchd])
 			])
 	fi
+	no_keychain=""
+	AC_ARG_WITH([apple-keychain],
+		[  --without-apple-keychain Disable support for macOS Keychain],
+		[
+			if test "x$withval" = "xno" ; then
+				no_keychain=1
+			fi
+		],
+	)
+	if test -z "$no_keychain"; then
+		(
+			AC_PROG_OBJC
+			AC_PROG_OBJCPP
+		) || {
+			AC_MSG_WARN([Objectivce C compiler not available, disabling Keychain support])
+			no_keychain=1
+		}
+	fi
+	if test -z "$no_keychain"; then
+		AC_PROG_OBJC
+		AC_PROG_OBJCPP
+		AC_LANG_PUSH([Objective C])
+		AC_CHECK_HEADERS([Security/Security.h],
+			[
+				AC_CHECK_HEADERS([Security/SecItemPriv.h])
+				AC_DEFINE([__APPLE_KEYCHAIN__], [1],
+					[Store passphrases in macOS Keychain])
+				LIBSSH_EXTRA_OBJS="$LIBSSH_EXTRA_OBJS keychain.o"
+				LDFLAGS="$LDFLAGS -framework Foundation -framework Security"
+			])
+		AC_LANG_POP([Objective C])
+	fi
 	;;
 *-*-dragonfly*)
 	SSHDLIBS="$SSHDLIBS -lcrypt"
@@ -4335,6 +4367,7 @@ AC_ARG_WITH([selinux],
 )
 AC_SUBST([SSHLIBS])
 AC_SUBST([SSHDLIBS])
+AC_SUBST([LIBSSH_EXTRA_OBJS])
 
 # Check whether user wants Kerberos 5 support
 KRB5_MSG="no"

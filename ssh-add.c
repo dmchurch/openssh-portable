@@ -65,6 +65,11 @@
 #include "ssherr.h"
 #include "digest.h"
 
+#ifdef __APPLE_KEYCHAIN__
+#include "keychain.h"
+static int use_keychain = 0;
+#endif
+
 /* argv0 */
 extern char *__progname;
 
@@ -112,6 +117,11 @@ delete_file(int agent_fd, const char *filename, int key_only, int qflag)
 	struct sshkey *public, *cert = NULL;
 	char *certpath = NULL, *comment = NULL;
 	int r, ret = -1;
+
+#ifdef __APPLE_KEYCHAIN__
+	if (use_keychain)
+		remove_from_keychain(filename);
+#endif
 
 	if ((r = sshkey_load_public(filename, &public,  &comment)) != 0) {
 		printf("Bad key file %s: %s\n", filename, ssh_err(r));
@@ -244,7 +254,22 @@ add_file(int agent_fd, const char *filename, int key_only, int qflag)
 			    filename, ssh_err(r));
 			goto fail_load;
 		}
+#ifdef __APPLE_KEYCHAIN__
+		if (use_keychain && private != NULL)
+			store_in_keychain(filename, pass);
+#endif
 	}
+
+#ifdef __APPLE_KEYCHAIN__
+	// try the keychain
+	if (private == NULL && use_keychain) {
+		clear_pass();
+		pass = keychain_read_passphrase(filename);
+		if (pass != NULL)
+			sshkey_parse_private_fileblob(keyblob, pass, &private, &comment);
+	}
+#endif
+
 	if (private == NULL) {
 		/* clear passphrase since it did not work */
 		clear_pass();
@@ -256,7 +281,15 @@ add_file(int agent_fd, const char *filename, int key_only, int qflag)
 				goto fail_load;
 			if ((r = sshkey_parse_private_fileblob(keyblob, pass,
 			    &private, &comment)) == 0)
+#ifdef __APPLE_KEYCHAIN__
+			{
+				if (use_keychain && private != NULL)
+					store_in_keychain(filename, pass);
 				break;
+			}
+#else
+				break;
+#endif
 			else if (r != SSH_ERR_KEY_WRONG_PASSPHRASE) {
 				fprintf(stderr,
 				    "Error loading key \"%s\": %s\n",
@@ -561,6 +594,11 @@ usage(void)
 	fprintf(stderr, "  -T pubkey   Test if ssh-agent can access matching private key.\n");
 	fprintf(stderr, "  -q          Be quiet after a successful operation.\n");
 	fprintf(stderr, "  -v          Be more verbose.\n");
+#ifdef __APPLE_KEYCHAIN__
+	fprintf(stderr, "  -A          Add all identities stored in your keychain.\n");
+	fprintf(stderr, "  -K          Store passphrases in your keychain.\n");
+	fprintf(stderr, "              With -d, remove passphrases from your keychain.\n");
+#endif
 }
 
 int
@@ -599,7 +637,11 @@ main(int argc, char **argv)
 		exit(2);
 	}
 
+#ifdef __APPLE_KEYCHAIN__
+	while ((ch = getopt(argc, argv, "vklLcdDTxXE:e:M:m:qs:t:KA")) != -1) {
+#else
 	while ((ch = getopt(argc, argv, "vklLcdDTxXE:e:M:m:qs:t:")) != -1) {
+#endif
 		switch (ch) {
 		case 'v':
 			if (log_level == SYSLOG_LEVEL_INFO)
@@ -672,6 +714,18 @@ main(int argc, char **argv)
 		case 'T':
 			Tflag = 1;
 			break;
+#ifdef __APPLE_KEYCHAIN__
+		case 'A':
+			use_keychain = 1;
+			if (load_identities_from_keychain(^(const char *filename){
+				return add_file(agent_fd, filename, 0, qflag);
+			}))
+				ret = 1;
+			goto done;
+		case 'K':
+			use_keychain = 1;
+			break;
+#endif
 		default:
 			usage();
 			ret = 1;
